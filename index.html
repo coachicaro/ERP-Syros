@@ -685,9 +685,21 @@ function setSyncStatus(status, label) {
 
 // ── SUPABASE CRUD ─────────────────────────────────────────────────────────────
 async function dbGet(table, params = '') {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?order=created_at.desc${params}`, { headers: SUPA_HEADERS });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
+  // Busca todos os registros com paginação (Supabase limita 1000 por vez)
+  let all = [];
+  let from = 0;
+  const limit = 1000;
+  while (true) {
+    const headers = { ...SUPA_HEADERS, 'Range': `${from}-${from + limit - 1}`, 'Range-Unit': 'items', 'Prefer': 'count=none' };
+    const r = await fetch(`${SUPA_URL}/rest/v1/${table}?order=created_at.desc&limit=${limit}&offset=${from}${params}`, { headers });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    if (!data.length) break;
+    all = all.concat(data);
+    if (data.length < limit) break;
+    from += limit;
+  }
+  return all;
 }
 
 async function dbInsert(table, data) {
