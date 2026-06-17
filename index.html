@@ -372,14 +372,75 @@ create table comissoes (id uuid primary key default gen_random_uuid(), created_a
     <!-- COMISSÕES -->
     <div class="view" id="view-comissoes">
       <div class="page-header">
-        <div><div class="page-title">Comissões</div><div class="page-sub">Controle de repasses e LTV por cliente</div></div>
+        <div><div class="page-title">Comissões & Saúde do Negócio</div><div class="page-sub">Métricas financeiras da carteira recorrente</div></div>
         <button class="btn btn-primary" onclick="abrirModal('comissao')">+ Registrar comissão</button>
       </div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
-        <div class="kpi-card"><div class="kpi-label">Total Recebido (ano)</div><div class="kpi-value" id="kpi-com-recebido">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">A Receber</div><div class="kpi-value" id="kpi-com-pendente">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">LTV Médio / Cliente</div><div class="kpi-value" id="kpi-ltv">—</div></div>
+
+      <!-- MRR -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          Receita Recorrente de Comissão (MRR)
+          <span class="badge badge-yellow" style="font-size:9px;">BETA</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;">
+          <div class="kpi-value" id="mrr-valor" style="font-size:32px;">—</div>
+          <div class="kpi-sub" id="mrr-detalhe">calculando...</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:10px;line-height:1.6;">
+          ⚠️ Estimado por <b>competência</b> (produção da carteira ativa ÷ 12), não por caixa. Seguradoras pagam comissão em prazos variados, então o valor real recebido por mês pode diferir bastante deste número. Ficará preciso quando importarmos os extratos de recebimento.
+        </div>
       </div>
+
+      <!-- Quick Ratio + NRR -->
+      <div class="dash-grid" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="card-title">Quick Ratio de Crescimento</div>
+          <div class="kpi-value" id="qr-valor" style="margin-bottom:6px;">—</div>
+          <div class="kpi-sub" id="qr-detalhe">—</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:10px;">(Receita nova + upsell) ÷ (Receita perdida por cancelamento + downsell). Abaixo de 1 = carteira encolhendo mesmo com vendas novas.</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Net Revenue Retention (NRR)</div>
+          <div class="kpi-value" id="nrr-valor" style="margin-bottom:6px;">—</div>
+          <div class="kpi-sub" id="nrr-detalhe">—</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:10px;">Da carteira que renovou, o prêmio ficou maior, igual ou menor que era antes. Captura quem "fica" mas reduz cobertura.</div>
+        </div>
+      </div>
+
+      <!-- Churn + Lifetime -->
+      <div class="dash-grid" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="card-title">Churn de Renovação</div>
+          <div class="kpi-value" id="churn-valor" style="margin-bottom:6px;">—</div>
+          <div class="kpi-sub" id="churn-detalhe">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tempo Médio de Vida do Cliente</div>
+          <div class="kpi-value" id="lifetime-valor" style="margin-bottom:6px;">—</div>
+          <div class="kpi-sub" id="lifetime-detalhe">—</div>
+        </div>
+      </div>
+
+      <!-- Concentração + Dependência seguradora -->
+      <div class="dash-grid" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="card-title">Concentração de Receita — Top 10 Clientes</div>
+          <div class="kpi-value" id="concentracao-valor" style="margin-bottom:10px;">—</div>
+          <div id="top-clientes-lista"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Dependência por Seguradora</div>
+          <div id="dependencia-seguradora-lista"></div>
+        </div>
+      </div>
+
+      <!-- LTV + CAC implícito -->
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:16px;">
+        <div class="kpi-card"><div class="kpi-label">Total Produzido (ano)</div><div class="kpi-value" id="kpi-com-recebido">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">LTV Médio / Cliente</div><div class="kpi-value" id="kpi-ltv">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Razão Nova ÷ Renovação</div><div class="kpi-value" id="kpi-cac">—</div><div class="kpi-sub">eficiência de aquisição</div></div>
+      </div>
+
       <div class="search-bar">
         <select id="filter-status-com" onchange="filtrarComissoes()">
           <option value="">Todos os status</option>
@@ -1150,19 +1211,131 @@ function filtrarSinistros() {
   renderSinistros(filtrado);
 }
 
+// ── MÉTRICAS EXECUTIVAS DE COMISSÕES ────────────────────────────────────────
+function calcularMetricasExecutivas() {
+  const ativas = apolices.filter(a => a.status === 'Ativa');
+
+  // ── MRR (beta) — produção anual ativa / 12
+  const premioAtivoTotal = ativas.reduce((s,a) => s + (parseFloat(a.premio_anual)||0), 0);
+  const comissaoAnualAtiva = ativas.reduce((s,a) => {
+    const valorReal = apolices_comissao_real(a);
+    return s + valorReal;
+  }, 0);
+  const mrr = comissaoAnualAtiva / 12;
+  document.getElementById('mrr-valor').textContent = fmtMoeda(mrr) + '/mês';
+  document.getElementById('mrr-detalhe').textContent = `baseado em ${fmtMoeda(comissaoAnualAtiva)} de comissão anual em carteira ativa`;
+
+  // ── Churn de renovação: apólices que venceram nos últimos 90 dias, quantas têm uma "Renovação" depois?
+  const hoje = new Date();
+  const noventaDiasAtras = new Date(hoje.getTime() - 90*86400000);
+  const venceramRecente = apolices.filter(a => {
+    if (!a.vigencia_fim) return false;
+    const fim = new Date(a.vigencia_fim);
+    return fim >= noventaDiasAtras && fim <= hoje;
+  });
+  // Aproximação: como não temos histórico plurianual completo, usamos status como proxy
+  const canceladas90d = venceramRecente.filter(a => a.status === 'Cancelada' || a.status === 'Vencida').length;
+  const totalVenceram = venceramRecente.length;
+  const churnPct = totalVenceram > 0 ? (canceladas90d / totalVenceram * 100) : null;
+  document.getElementById('churn-valor').textContent = churnPct !== null ? churnPct.toFixed(1) + '%' : '—';
+  document.getElementById('churn-detalhe').textContent = totalVenceram > 0
+    ? `${canceladas90d} de ${totalVenceram} apólices vencidas (90d) não renovaram`
+    : 'dados insuficientes ainda (histórico curto)';
+
+  // ── Tempo médio de vida do cliente — aproximado pela diferença entre primeira e última apólice por cliente
+  const porCliente = {};
+  apolices.forEach(a => {
+    if (!a.cliente_id || !a.vigencia_inicio) return;
+    if (!porCliente[a.cliente_id]) porCliente[a.cliente_id] = [];
+    porCliente[a.cliente_id].push(new Date(a.vigencia_inicio));
+  });
+  const spans = Object.values(porCliente)
+    .filter(datas => datas.length >= 1)
+    .map(datas => {
+      const min = Math.min(...datas);
+      const max = Math.max(...datas);
+      return (max - min) / (365.25*86400000); // anos
+    });
+  const temDadosSuficientes = spans.some(s => s > 0);
+  const lifetimeMedio = spans.length ? spans.reduce((a,b)=>a+b,0)/spans.length : 0;
+  if (temDadosSuficientes) {
+    document.getElementById('lifetime-valor').textContent = (lifetimeMedio*12).toFixed(0) + ' meses';
+    document.getElementById('lifetime-detalhe').textContent = 'estimado pelo intervalo entre apólices do mesmo cliente';
+  } else {
+    document.getElementById('lifetime-valor').textContent = '—';
+    document.getElementById('lifetime-detalhe').textContent = 'precisa de histórico multi-ano para calcular (temos só 2026)';
+  }
+
+  // ── Concentração de receita: top 10 clientes por comissão
+  const comissaoPorCliente = {};
+  apolices.forEach(a => {
+    if (!a.cliente_id) return;
+    const valor = apolices_comissao_real(a);
+    comissaoPorCliente[a.cliente_id] = (comissaoPorCliente[a.cliente_id]||0) + valor;
+  });
+  const totalComissaoGeral = Object.values(comissaoPorCliente).reduce((a,b)=>a+b,0);
+  const top10 = Object.entries(comissaoPorCliente)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0,10);
+  const somaTop10 = top10.reduce((s,[,v])=>s+v,0);
+  const pctTop10 = totalComissaoGeral > 0 ? (somaTop10/totalComissaoGeral*100) : 0;
+  document.getElementById('concentracao-valor').textContent = pctTop10.toFixed(1) + '% da receita';
+  document.getElementById('top-clientes-lista').innerHTML = top10.map(([clienteId, valor], i) => {
+    const cl = clientes.find(c => c.id === clienteId);
+    return `<div class="metric-item"><div class="metric-label">${i+1}. ${cl?.nome || 'Cliente'}</div><div class="metric-value">${fmtMoeda(valor)}</div></div>`;
+  }).join('') || '<div class="empty" style="padding:10px 0;"><p>Sem dados</p></div>';
+
+  // ── Dependência por seguradora
+  const comissaoPorSeguradora = {};
+  apolices.forEach(a => {
+    const seg = a.seguradora || 'Outra';
+    comissaoPorSeguradora[seg] = (comissaoPorSeguradora[seg]||0) + apolices_comissao_real(a);
+  });
+  const totalSeg = Object.values(comissaoPorSeguradora).reduce((a,b)=>a+b,0);
+  const segOrdenado = Object.entries(comissaoPorSeguradora).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  document.getElementById('dependencia-seguradora-lista').innerHTML = segOrdenado.map(([seg, valor]) => {
+    const pct = totalSeg > 0 ? (valor/totalSeg*100) : 0;
+    return `<div class="metric-item"><div style="flex:1"><div class="metric-label">${seg}</div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div><div class="metric-value" style="margin-left:10px;">${pct.toFixed(0)}%</div></div>`;
+  }).join('') || '<div class="empty" style="padding:10px 0;"><p>Sem dados</p></div>';
+
+  // ── Razão Nova ÷ Renovação (eficiência de aquisição)
+  const novas = apolices.filter(a => a.tipo_proposta === 'Nova').length;
+  const renovacoes = apolices.filter(a => a.tipo_proposta === 'Renovação').length;
+  const razao = renovacoes > 0 ? (novas/renovacoes) : null;
+  document.getElementById('kpi-cac').textContent = razao !== null ? razao.toFixed(2) : '—';
+
+  // ── Quick Ratio (aproximado): receita nova / receita perdida (canceladas)
+  const comissaoNova = apolices.filter(a => a.tipo_proposta === 'Nova').reduce((s,a)=>s+apolices_comissao_real(a),0);
+  const comissaoCancelada = apolices.filter(a => a.status === 'Cancelada').reduce((s,a)=>s+apolices_comissao_real(a),0);
+  const quickRatio = comissaoCancelada > 0 ? (comissaoNova/comissaoCancelada) : null;
+  document.getElementById('qr-valor').textContent = quickRatio !== null ? quickRatio.toFixed(2) : (comissaoCancelada === 0 ? '∞' : '—');
+  document.getElementById('qr-detalhe').textContent = comissaoCancelada > 0
+    ? `${fmtMoeda(comissaoNova)} novo vs ${fmtMoeda(comissaoCancelada)} perdido`
+    : 'nenhum cancelamento registrado ainda — ótimo sinal, mas verifique se status está sendo atualizado';
+
+  // ── NRR (aproximado): como não temos prêmio "antes" de renovações, usamos proxy direcional
+  document.getElementById('nrr-valor').textContent = '—';
+  document.getElementById('nrr-detalhe').textContent = 'precisa de 2+ anos de histórico para comparar prêmio antes/depois da renovação';
+}
+
+function apolices_comissao_real(a) {
+  if (a.comissao_valor !== null && a.comissao_valor !== undefined) return parseFloat(a.comissao_valor) || 0;
+  return (parseFloat(a.premio_anual)||0) * (parseFloat(a.comissao_pct)||0) / 100;
+}
+
 // ── RENDER COMISSÕES ──────────────────────────────────────────────────────────
 function renderComissoes(lista) {
   const data = lista || comissoes;
   const tbody = document.getElementById('tbody-comissoes');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">💰</div><p>Nenhuma comissão registrada.</p></div></td></tr>'; return; }
 
-  const recebido = comissoes.filter(c => c.status === 'Recebida').reduce((s,c) => s+(parseFloat(c.valor)||0), 0);
-  const pendente = comissoes.filter(c => c.status !== 'Recebida').reduce((s,c) => s+(parseFloat(c.valor)||0), 0);
-  const ltvTotal = comissoes.reduce((s,c) => s+(parseFloat(c.valor)||0), 0);
-  const ltv = clientes.length ? ltvTotal / clientes.length : 0;
-  document.getElementById('kpi-com-recebido').textContent = fmtMoeda(recebido);
-  document.getElementById('kpi-com-pendente').textContent = fmtMoeda(pendente);
+  calcularMetricasExecutivas();
+
+  const totalProduzido = apolices.reduce((s,a) => s + apolices_comissao_real(a), 0);
+  const ltv = clientes.length ? totalProduzido / clientes.length : 0;
+  document.getElementById('kpi-com-recebido').textContent = fmtMoeda(totalProduzido);
   document.getElementById('kpi-ltv').textContent = fmtMoeda(ltv);
+
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">💰</div><p>Nenhuma comissão registrada.</p></div></td></tr>'; return; }
 
   tbody.innerHTML = data.map(c => {
     const a = apolices.find(x => x.id === c.apolice_id);
