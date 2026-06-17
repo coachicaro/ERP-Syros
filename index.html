@@ -220,6 +220,30 @@ tr:hover td { background: #f8f9fd; }
 
 .drop-zone { border: 2px dashed var(--border-strong); border-radius: var(--radius); padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg); }
 .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-light); }
+
+/* KPI PANEL */
+.kpi-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.kpi-block-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+.kpi-block-title { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.cadencia-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 9px; border-radius: 99px; }
+.cadencia-semanal { background: #fef3c7; color: #b45309; }
+.cadencia-mensal { background: #dbeafe; color: #1d4ed8; }
+.cadencia-trimestral { background: #ede9fe; color: #6d28d9; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.metric-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; position: relative; }
+.metric-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+.metric-card-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.4; }
+.semaforo { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-left: 8px; margin-top: 2px; }
+.semaforo.verde { background: var(--green); box-shadow: 0 0 0 3px rgba(22,163,74,0.15); }
+.semaforo.amarelo { background: var(--yellow); box-shadow: 0 0 0 3px rgba(217,119,6,0.15); }
+.semaforo.vermelho { background: var(--red); box-shadow: 0 0 0 3px rgba(220,38,38,0.15); }
+.semaforo.cinza { background: var(--text-3); box-shadow: 0 0 0 3px rgba(156,152,144,0.12); }
+.metric-card-value { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--text); line-height: 1.1; }
+.metric-card-value.insuficiente { font-size: 13px; color: var(--text-3); font-family: 'DM Sans', sans-serif; font-weight: 500; }
+.metric-card-sub { font-size: 11px; color: var(--text-3); margin-top: 6px; line-height: 1.5; }
+.metric-card-falta { font-size: 10.5px; color: var(--yellow); margin-top: 6px; line-height: 1.5; background: var(--yellow-light); padding: 6px 8px; border-radius: 5px; }
+.periodo-filter { display: flex; gap: 8px; align-items: center; }
+.periodo-filter select { padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12.5px; font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); }
 </style>
 </head>
 <body>
@@ -272,6 +296,7 @@ create table comissoes (id uuid primary key default gen_random_uuid(), created_a
       <div class="nav-item" onclick="setView('apolices')"><span class="icon">📋</span> Apólices <span class="nav-badge" id="cnt-apolices">0</span></div>
       <div class="nav-section">Financeiro</div>
       <div class="nav-item" onclick="setView('comissoes')"><span class="icon">💰</span> Comissões</div>
+      <div class="nav-item" onclick="setView('kpis')"><span class="icon">🎯</span> KPIs Estratégicos</div>
       <div class="nav-item" onclick="setView('sinistros')"><span class="icon">⚡</span> Sinistros <span class="nav-badge red" id="cnt-sinistros">0</span></div>
       <div class="nav-section">Gestão</div>
       <div class="nav-item" onclick="setView('renovacoes')"><span class="icon">🔄</span> Renovações <span class="nav-badge red" id="cnt-renovacoes">0</span></div>
@@ -438,7 +463,7 @@ create table comissoes (id uuid primary key default gen_random_uuid(), created_a
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:16px;">
         <div class="kpi-card"><div class="kpi-label">Total Produzido (ano)</div><div class="kpi-value" id="kpi-com-recebido">—</div></div>
         <div class="kpi-card"><div class="kpi-label">LTV Médio / Cliente</div><div class="kpi-value" id="kpi-ltv">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Razão Nova ÷ Renovação</div><div class="kpi-value" id="kpi-cac">—</div><div class="kpi-sub">eficiência de aquisição</div></div>
+        <div class="kpi-card"><div class="kpi-label">Razão Nova ÷ Renovação</div><div class="kpi-value" id="kpi-cac">—</div><div class="kpi-sub">eficiência de aquisição</div><div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5;">Quanto menor, mais a carteira cresce por renovação do que por venda nova — sinal de relacionamento estável.</div></div>
       </div>
 
       <div class="search-bar">
@@ -533,6 +558,67 @@ create table comissoes (id uuid primary key default gen_random_uuid(), created_a
         </div>
         <input type="file" id="file-apolices" accept=".xlsx,.csv" style="display:none" onchange="importarArquivo(this,'apolices')">
         <div id="preview-apolices" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
+    <!-- KPIs ESTRATÉGICOS -->
+    <div class="view" id="view-kpis">
+      <div class="page-header">
+        <div><div class="page-title">KPIs Estratégicos</div><div class="page-sub">Métricas de gestão da corretora, por cadência de acompanhamento</div></div>
+        <div class="periodo-filter">
+          <select id="kpi-periodo" onchange="renderKPIsEstrategicos()">
+            <option value="todos">Todo o histórico</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="ano">Ano corrente</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-block-header">
+          <div class="kpi-block-title">📅 Acompanhamento Semanal <span class="cadencia-tag cadencia-semanal">Semanal</span></div>
+        </div>
+        <div class="metric-grid" id="grid-semanal"></div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-block-header">
+          <div class="kpi-block-title">🚀 Bloco 1 — Aquisição e Crescimento</div>
+        </div>
+        <div class="metric-grid" id="grid-bloco1"></div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-block-header">
+          <div class="kpi-block-title">🔄 Bloco 2 — Carteira e Retenção <span class="cadencia-tag cadencia-mensal">Mensal</span></div>
+        </div>
+        <div class="metric-grid" id="grid-bloco2"></div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-block-header">
+          <div class="kpi-block-title">💎 Bloco 3 — Rentabilidade por Produto e Cliente <span class="cadencia-tag cadencia-trimestral">Trimestral</span></div>
+        </div>
+        <div class="metric-grid" id="grid-bloco3"></div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-block-header">
+          <div class="kpi-block-title">⚙️ Bloco 4 — Eficiência Operacional <span class="cadencia-tag cadencia-mensal">Mensal</span></div>
+        </div>
+        <div class="metric-grid" id="grid-bloco4"></div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-block-header">
+          <div class="kpi-block-title">🏦 Bloco 5 — Saúde Financeira <span class="cadencia-tag cadencia-mensal">Mensal</span></div>
+        </div>
+        <div class="metric-grid" id="grid-bloco5"></div>
+      </div>
+
+      <div class="card" style="font-size:11px;color:var(--text-3);line-height:1.7;">
+        ⚙️ <b>Faixas de referência (semáforo)</b> usadas neste painel são padrões gerais de mercado para corretoras pequenas e podem não refletir a realidade específica da Syros. Avise se quiser ajustar algum limite.
       </div>
     </div>
 
@@ -801,6 +887,7 @@ function setView(v) {
     if (el.getAttribute('onclick') && el.getAttribute('onclick').includes("'"+v+"'")) el.classList.add('active');
   });
   if (v === 'renovacoes') filtrarRenovacoes('vencendo');
+  if (v === 'kpis') renderKPIsEstrategicos();
   if (window.innerWidth < 768) closeSidebar();
 }
 
@@ -1460,7 +1547,195 @@ function toast(msg, dur = 3000) {
   setTimeout(() => el.classList.remove('show'), dur);
 }
 
-// ── START ─────────────────────────────────────────────────────────────────────
+// ── PAINEL DE KPIs ESTRATÉGICOS ─────────────────────────────────────────────────
+// Faixas de referência (semáforo) — configuráveis. Ajuste aqui se quiser calibrar.
+const FAIXAS_KPI = {
+  conversao: { verde: 30, amarelo: 15 },           // % — maior é melhor
+  retencao: { verde: 85, amarelo: 70 },             // % — maior é melhor
+  mixConcentracaoRamo: { verde: 60, amarelo: 80 },  // % do maior ramo — menor é melhor (abaixo de verde = diversificado)
+  crossSell: { verde: 1.5, amarelo: 1.15 },         // apólices/cliente — maior é melhor
+  comissaoMediaRamo: { verde: 20, amarelo: 10 },    // % — maior é melhor
+  receitaRecorrente: { verde: 70, amarelo: 50 },    // % — maior é melhor
+  razaoNovaRenovacao: { verde: 0.7, amarelo: 1.2 }, // menor é melhor (depende menos de novo p/ crescer)
+};
+
+function semaforoMaiorMelhor(valor, faixa) {
+  if (valor === null || valor === undefined || isNaN(valor)) return 'cinza';
+  if (valor >= faixa.verde) return 'verde';
+  if (valor >= faixa.amarelo) return 'amarelo';
+  return 'vermelho';
+}
+function semaforoMenorMelhor(valor, faixa) {
+  if (valor === null || valor === undefined || isNaN(valor)) return 'cinza';
+  if (valor <= faixa.verde) return 'verde';
+  if (valor <= faixa.amarelo) return 'amarelo';
+  return 'vermelho';
+}
+
+function filtrarPorPeriodo(lista, campoData) {
+  const periodo = document.getElementById('kpi-periodo')?.value || 'todos';
+  if (periodo === 'todos') return lista;
+  const hoje = new Date();
+  let limite;
+  if (periodo === '30') limite = new Date(hoje.getTime() - 30*86400000);
+  else if (periodo === '90') limite = new Date(hoje.getTime() - 90*86400000);
+  else if (periodo === 'ano') limite = new Date(hoje.getFullYear(), 0, 1);
+  return lista.filter(item => {
+    const d = item[campoData];
+    if (!d) return false;
+    return new Date(d) >= limite;
+  });
+}
+
+function metricCard(label, valorHtml, semaforo, sub, falta) {
+  const semDot = semaforo ? `<div class="semaforo ${semaforo}"></div>` : '';
+  const valorClass = falta ? 'metric-card-value insuficiente' : 'metric-card-value';
+  return `<div class="metric-card">
+    <div class="metric-card-top"><div class="metric-card-label">${label}</div>${semDot}</div>
+    <div class="${valorClass}">${valorHtml}</div>
+    ${sub ? `<div class="metric-card-sub">${sub}</div>` : ''}
+    ${falta ? `<div class="metric-card-falta">📋 Falta: ${falta}</div>` : ''}
+  </div>`;
+}
+
+function renderKPIsEstrategicos() {
+  const apolicesPeriodo = filtrarPorPeriodo(apolices, 'vigencia_inicio');
+  const ativasPeriodo = apolicesPeriodo.filter(a => a.status === 'Ativa');
+  const novasPeriodo = apolicesPeriodo.filter(a => a.tipo_proposta === 'Nova');
+  const renovacoesPeriodo = apolicesPeriodo.filter(a => a.tipo_proposta === 'Renovação');
+
+  // ═══ ACOMPANHAMENTO SEMANAL ═══
+  const hoje = new Date();
+  const vencendo60 = apolices.filter(a => {
+    if (!a.vigencia_fim || a.status !== 'Ativa') return false;
+    const dias = Math.ceil((new Date(a.vigencia_fim) - hoje) / 86400000);
+    return dias >= 0 && dias <= 60;
+  });
+  const valorEmRisco60 = vencendo60.reduce((s,a) => s + apolices_comissao_real(a), 0);
+
+  document.getElementById('grid-semanal').innerHTML = [
+    metricCard('Renovações a vencer (60d)', vencendo60.length, vencendo60.length > 10 ? 'amarelo' : 'verde',
+      `${fmtMoeda(valorEmRisco60)} em comissão associada`),
+    metricCard('Propostas pendentes', '—', 'cinza', null, 'tabela de propostas/cotações (combinamos deixar para depois)'),
+    metricCard('Conversão (semana)', '—', 'cinza', null, 'tabela de propostas/cotações (combinamos deixar para depois)'),
+  ].join('');
+
+  // ═══ BLOCO 1 — AQUISIÇÃO E CRESCIMENTO ═══
+  const premioMedioNovo = novasPeriodo.length ? novasPeriodo.reduce((s,a)=>s+(parseFloat(a.premio_anual)||0),0) / novasPeriodo.length : null;
+
+  const mixRamo = {};
+  novasPeriodo.forEach(a => { const r = a.ramo || 'Outro'; mixRamo[r] = (mixRamo[r]||0) + 1; });
+  const totalNovasMix = novasPeriodo.length;
+  const mixOrdenado = Object.entries(mixRamo).sort((a,b)=>b[1]-a[1]);
+  const mixHtml = totalNovasMix ? mixOrdenado.slice(0,4).map(([r,c]) => `${r}: ${(c/totalNovasMix*100).toFixed(0)}%`).join(' · ') : null;
+  const maiorRamoPct = totalNovasMix && mixOrdenado.length ? (mixOrdenado[0][1]/totalNovasMix*100) : null;
+
+  document.getElementById('grid-bloco1').innerHTML = [
+    metricCard('CAC', '—', 'cinza', null, 'custo de aquisição não está cadastrado no sistema'),
+    metricCard('Taxa de conversão', '—', 'cinza', null, 'tabela de propostas/cotações (combinamos deixar para depois)'),
+    metricCard('Prêmio médio por novo segurado', premioMedioNovo !== null ? fmtMoeda(premioMedioNovo) : '—', null,
+      premioMedioNovo !== null ? `${novasPeriodo.length} apólices novas no período` : null,
+      premioMedioNovo === null ? 'nenhuma apólice "Nova" no período selecionado' : null),
+    metricCard('Mix de novos negócios por ramo', mixHtml || '—', maiorRamoPct !== null ? semaforoMenorMelhor(maiorRamoPct, FAIXAS_KPI.mixConcentracaoRamo) : null,
+      mixHtml ? 'maior ramo concentrado: ' + maiorRamoPct.toFixed(0) + '% das vendas novas' : null,
+      !mixHtml ? 'nenhuma apólice "Nova" no período selecionado' : null),
+  ].join('');
+
+  // ═══ BLOCO 2 — CARTEIRA E RETENÇÃO ═══
+  const noventaDiasAtras = new Date(hoje.getTime() - 90*86400000);
+  const venceramRecente = apolices.filter(a => a.vigencia_fim && new Date(a.vigencia_fim) >= noventaDiasAtras && new Date(a.vigencia_fim) <= hoje);
+  const renovadas90 = venceramRecente.filter(a => a.status === 'Ativa' || a.status === 'Renovação').length;
+  const retencaoPct = venceramRecente.length ? (renovadas90/venceramRecente.length*100) : null;
+
+  const ativasTotal = apolices.filter(a => a.status === 'Ativa');
+  const clientesAtivosUnicos = new Set(ativasTotal.map(a=>a.cliente_id).filter(Boolean));
+  const comissaoTotalAtiva = ativasTotal.reduce((s,a)=>s+apolices_comissao_real(a),0);
+  const ticketMedioAtivo = clientesAtivosUnicos.size ? comissaoTotalAtiva/clientesAtivosUnicos.size : null;
+
+  const apolicesPorClienteCount = {};
+  apolices.forEach(a => { if(a.cliente_id) apolicesPorClienteCount[a.cliente_id] = (apolicesPorClienteCount[a.cliente_id]||0)+1; });
+  const totalClientesComApolice = Object.keys(apolicesPorClienteCount).length;
+  const crossSell = totalClientesComApolice ? Object.values(apolicesPorClienteCount).reduce((a,b)=>a+b,0)/totalClientesComApolice : null;
+
+  document.getElementById('grid-bloco2').innerHTML = [
+    metricCard('Índice de retenção de carteira', retencaoPct !== null ? retencaoPct.toFixed(1)+'%' : '—',
+      retencaoPct !== null ? semaforoMaiorMelhor(retencaoPct, FAIXAS_KPI.retencao) : null,
+      retencaoPct !== null ? `${renovadas90} de ${venceramRecente.length} venceram nos últimos 90d e seguem ativas` : null,
+      retencaoPct === null ? 'nenhuma apólice venceu nos últimos 90 dias para medir' : null),
+    metricCard('Churn por motivo', '—', 'cinza', null, 'campo "motivo de cancelamento" não existe no cadastro'),
+    metricCard('Ticket médio por segurado ativo', ticketMedioAtivo !== null ? fmtMoeda(ticketMedioAtivo) : '—', null,
+      ticketMedioAtivo !== null ? `${clientesAtivosUnicos.size} segurados ativos` : null),
+    metricCard('Apólices por cliente (cross-sell)', crossSell !== null ? crossSell.toFixed(2) : '—',
+      crossSell !== null ? semaforoMaiorMelhor(crossSell, FAIXAS_KPI.crossSell) : null,
+      crossSell !== null ? `${totalClientesComApolice} clientes com pelo menos 1 apólice` : null),
+  ].join('');
+
+  // ═══ BLOCO 3 — RENTABILIDADE POR PRODUTO E CLIENTE ═══
+  const comissaoPctPorRamo = {};
+  const countPorRamo = {};
+  apolices.forEach(a => {
+    const r = a.ramo || 'Outro';
+    if (a.comissao_pct !== null && a.comissao_pct !== undefined) {
+      comissaoPctPorRamo[r] = (comissaoPctPorRamo[r]||0) + parseFloat(a.comissao_pct);
+      countPorRamo[r] = (countPorRamo[r]||0) + 1;
+    }
+  });
+  const comissaoMediaPorRamoArr = Object.keys(comissaoPctPorRamo).map(r => ({ramo:r, media: comissaoPctPorRamo[r]/countPorRamo[r]})).sort((a,b)=>b.media-a.media);
+  const comissaoMediaHtml = comissaoMediaPorRamoArr.length ? comissaoMediaPorRamoArr.slice(0,4).map(x=>`${x.ramo}: ${x.media.toFixed(1)}%`).join(' · ') : null;
+  const comissaoMediaGeral = comissaoMediaPorRamoArr.length ? comissaoMediaPorRamoArr.reduce((s,x)=>s+x.media,0)/comissaoMediaPorRamoArr.length : null;
+
+  document.getElementById('grid-bloco3').innerHTML = [
+    metricCard('Comissão média por ramo', comissaoMediaHtml || '—',
+      comissaoMediaGeral !== null ? semaforoMaiorMelhor(comissaoMediaGeral, FAIXAS_KPI.comissaoMediaRamo) : null,
+      comissaoMediaHtml ? 'média simples do % de comissão por ramo' : null,
+      !comissaoMediaHtml ? 'nenhuma apólice com % de comissão cadastrado' : null),
+    metricCard('Margem de contribuição por cliente', '—', 'cinza', null, 'custo estimado de servir o cliente não está cadastrado'),
+    metricCard('LTV do segurado', '—', 'cinza', null, 'tempo médio de permanência não calculável ainda (só temos histórico de 2026)'),
+    metricCard('LTV / CAC', '—', 'cinza', null, 'depende de CAC, que não está cadastrado'),
+  ].join('');
+
+  // ═══ BLOCO 4 — EFICIÊNCIA OPERACIONAL ═══
+  const comissaoPorProdutor = {};
+  apolices.forEach(a => {
+    const p = a.produtor || 'Sem produtor';
+    comissaoPorProdutor[p] = (comissaoPorProdutor[p]||0) + apolices_comissao_real(a);
+  });
+  const produtorOrdenado = Object.entries(comissaoPorProdutor).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const produtividadeHtml = produtorOrdenado.length ? produtorOrdenado.map(([p,v]) => `${p}: ${fmtMoeda(v)}`).join('<br>') : null;
+
+  // Sinistros: temos data_abertura e data_resolucao, mas não prazo esperado definido
+  const sinistrosComResolucao = sinistros.filter(s => s.data_resolucao);
+  const tempoMedioResolucao = sinistrosComResolucao.length
+    ? sinistrosComResolucao.reduce((s,x) => s + (new Date(x.data_resolucao)-new Date(x.data_abertura))/86400000, 0) / sinistrosComResolucao.length
+    : null;
+
+  document.getElementById('grid-bloco4').innerHTML = [
+    metricCard('Produtividade por corretor (comissão total)', produtividadeHtml || '—', null,
+      produtividadeHtml ? 'comissão acumulada do histórico, não por mês — falta cadastro de colaboradores/período de atuação' : null,
+      !produtividadeHtml ? 'nenhuma apólice com produtor identificado' : null),
+    metricCard('Tempo médio de emissão', '—', 'cinza', null, 'data de primeiro contato não está cadastrada (só temos data de vigência)'),
+    metricCard('Tempo médio de resolução de sinistros', tempoMedioResolucao !== null ? tempoMedioResolucao.toFixed(0)+' dias' : '—', null,
+      tempoMedioResolucao !== null ? `${sinistrosComResolucao.length} sinistros com data de resolução registrada` : null,
+      tempoMedioResolucao === null ? 'nenhum sinistro com data de resolução preenchida' : 'falta um "prazo esperado" cadastrado para calcular % resolvido a tempo'),
+  ].join('');
+
+  // ═══ BLOCO 5 — SAÚDE FINANCEIRA ═══
+  const comissaoNovaTotal = apolicesPeriodo.filter(a=>a.tipo_proposta==='Nova').reduce((s,a)=>s+apolices_comissao_real(a),0);
+  const comissaoRenovTotal = apolicesPeriodo.filter(a=>a.tipo_proposta==='Renovação').reduce((s,a)=>s+apolices_comissao_real(a),0);
+  const comissaoTotalPeriodo = comissaoNovaTotal + comissaoRenovTotal;
+  const pctRecorrente = comissaoTotalPeriodo > 0 ? (comissaoRenovTotal/comissaoTotalPeriodo*100) : null;
+
+  document.getElementById('grid-bloco5').innerHTML = [
+    metricCard('% Receita recorrente (renovação) vs nova', pctRecorrente !== null ? pctRecorrente.toFixed(1)+'%' : '—',
+      pctRecorrente !== null ? semaforoMaiorMelhor(pctRecorrente, FAIXAS_KPI.receitaRecorrente) : null,
+      pctRecorrente !== null ? `${fmtMoeda(comissaoRenovTotal)} renovação vs ${fmtMoeda(comissaoNovaTotal)} novo negócio` : null,
+      pctRecorrente === null ? 'nenhuma apólice no período selecionado' : null),
+    metricCard('Prazo médio de recebimento da seguradora', '—', 'cinza', null, 'aguardando extrato de recebimento do financeiro (combinamos isso anteriormente)'),
+    metricCard('Margem líquida da operação', '—', 'cinza', null, 'despesas fixas não estão cadastradas no sistema'),
+  ].join('');
+}
+
+
 init();
 
 // ── IMPORTAÇÃO ────────────────────────────────────────────────────────────────
