@@ -224,7 +224,7 @@ tr:hover td { background: #f8f9fd; }
 /* KPI PANEL */
 .kpi-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
 .kpi-block-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
-.kpi-block-title { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.kpi-block-title { font-family: 'DM Serif Display', serif; font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .cadencia-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 9px; border-radius: 99px; }
 .cadencia-semanal { background: #fef3c7; color: #b45309; }
 .cadencia-mensal { background: #dbeafe; color: #1d4ed8; }
@@ -454,7 +454,7 @@ create table comissoes (id uuid primary key default gen_random_uuid(), created_a
           <div id="top-clientes-lista"></div>
         </div>
         <div class="card">
-          <div class="card-title">Dependência por Seguradora</div>
+          <div class="card-title">Produção por Seguradora</div>
           <div id="dependencia-seguradora-lista"></div>
         </div>
       </div>
@@ -1621,24 +1621,27 @@ function renderKPIsEstrategicos() {
   ].join('');
 
   // ═══ BLOCO 1 — AQUISIÇÃO E CRESCIMENTO ═══
-  const premioMedioNovo = novasPeriodo.length ? novasPeriodo.reduce((s,a)=>s+(parseFloat(a.premio_anual)||0),0) / novasPeriodo.length : null;
+  const comissaoMediaNovo = novasPeriodo.length ? novasPeriodo.reduce((s,a)=>s+apolices_comissao_real(a),0) / novasPeriodo.length : null;
 
-  const mixRamo = {};
-  novasPeriodo.forEach(a => { const r = a.ramo || 'Outro'; mixRamo[r] = (mixRamo[r]||0) + 1; });
-  const totalNovasMix = novasPeriodo.length;
-  const mixOrdenado = Object.entries(mixRamo).sort((a,b)=>b[1]-a[1]);
-  const mixHtml = totalNovasMix ? mixOrdenado.slice(0,4).map(([r,c]) => `${r}: ${(c/totalNovasMix*100).toFixed(0)}%`).join(' · ') : null;
-  const maiorRamoPct = totalNovasMix && mixOrdenado.length ? (mixOrdenado[0][1]/totalNovasMix*100) : null;
+  const comissaoRamoNovo = {};
+  novasPeriodo.forEach(a => { const r = a.ramo || 'Outro'; comissaoRamoNovo[r] = (comissaoRamoNovo[r]||0) + apolices_comissao_real(a); });
+  const ramoComissaoOrdenado = Object.entries(comissaoRamoNovo).sort((a,b)=>b[1]-a[1]);
+  const top5RamoComissaoHtml = ramoComissaoOrdenado.length
+    ? ramoComissaoOrdenado.slice(0,5).map(([r,v]) => `${r}: ${fmtMoeda(v)}`).join('<br>')
+    : null;
+  const totalComissaoNovo = ramoComissaoOrdenado.reduce((s,[,v])=>s+v,0);
+  const maiorRamoComissaoPct = totalComissaoNovo > 0 && ramoComissaoOrdenado.length ? (ramoComissaoOrdenado[0][1]/totalComissaoNovo*100) : null;
 
   document.getElementById('grid-bloco1').innerHTML = [
     metricCard('CAC', '—', 'cinza', null, 'custo de aquisição não está cadastrado no sistema'),
     metricCard('Taxa de conversão', '—', 'cinza', null, 'tabela de propostas/cotações (combinamos deixar para depois)'),
-    metricCard('Prêmio médio por novo segurado', premioMedioNovo !== null ? fmtMoeda(premioMedioNovo) : '—', null,
-      premioMedioNovo !== null ? `${novasPeriodo.length} apólices novas no período` : null,
-      premioMedioNovo === null ? 'nenhuma apólice "Nova" no período selecionado' : null),
-    metricCard('Mix de novos negócios por ramo', mixHtml || '—', maiorRamoPct !== null ? semaforoMenorMelhor(maiorRamoPct, FAIXAS_KPI.mixConcentracaoRamo) : null,
-      mixHtml ? 'maior ramo concentrado: ' + maiorRamoPct.toFixed(0) + '% das vendas novas' : null,
-      !mixHtml ? 'nenhuma apólice "Nova" no período selecionado' : null),
+    metricCard('Ticket médio de comissão por novo segurado', comissaoMediaNovo !== null ? fmtMoeda(comissaoMediaNovo) : '—', null,
+      comissaoMediaNovo !== null ? `${novasPeriodo.length} apólices novas no período` : null,
+      comissaoMediaNovo === null ? 'nenhuma apólice "Nova" no período selecionado' : null),
+    metricCard('Comissão gerada por ramo (top 5, vendas novas)', top5RamoComissaoHtml || '—',
+      maiorRamoComissaoPct !== null ? semaforoMenorMelhor(maiorRamoComissaoPct, FAIXAS_KPI.mixConcentracaoRamo) : null,
+      top5RamoComissaoHtml ? 'maior ramo concentra ' + maiorRamoComissaoPct.toFixed(0) + '% da comissão de vendas novas' : null,
+      !top5RamoComissaoHtml ? 'nenhuma apólice "Nova" no período selecionado' : null),
   ].join('');
 
   // ═══ BLOCO 2 — CARTEIRA E RETENÇÃO ═══
@@ -1696,12 +1699,19 @@ function renderKPIsEstrategicos() {
 
   // ═══ BLOCO 4 — EFICIÊNCIA OPERACIONAL ═══
   const comissaoPorProdutor = {};
+  const countPorProdutor = {};
   apolices.forEach(a => {
     const p = a.produtor || 'Sem produtor';
     comissaoPorProdutor[p] = (comissaoPorProdutor[p]||0) + apolices_comissao_real(a);
+    countPorProdutor[p] = (countPorProdutor[p]||0) + 1;
   });
   const produtorOrdenado = Object.entries(comissaoPorProdutor).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const produtividadeHtml = produtorOrdenado.length ? produtorOrdenado.map(([p,v]) => `${p}: ${fmtMoeda(v)}`).join('<br>') : null;
+  const produtividadeHtml = produtorOrdenado.length
+    ? produtorOrdenado.map(([p,v]) => {
+        const ticket = countPorProdutor[p] ? v/countPorProdutor[p] : 0;
+        return `${p}: ${fmtMoeda(v)} <span style="color:var(--text-3);">(${fmtMoeda(ticket)}/venda)</span>`;
+      }).join('<br>')
+    : null;
 
   // Sinistros: temos data_abertura e data_resolucao, mas não prazo esperado definido
   const sinistrosComResolucao = sinistros.filter(s => s.data_resolucao);
@@ -1710,10 +1720,9 @@ function renderKPIsEstrategicos() {
     : null;
 
   document.getElementById('grid-bloco4').innerHTML = [
-    metricCard('Produtividade por corretor (comissão total)', produtividadeHtml || '—', null,
-      produtividadeHtml ? 'comissão acumulada do histórico, não por mês — falta cadastro de colaboradores/período de atuação' : null,
+    metricCard('Produtividade por corretor (total e por venda)', produtividadeHtml || '—', null,
+      produtividadeHtml ? 'comissão acumulada do histórico + ticket médio de comissão por venda, para comparar volume vs valor' : null,
       !produtividadeHtml ? 'nenhuma apólice com produtor identificado' : null),
-    metricCard('Tempo médio de emissão', '—', 'cinza', null, 'data de primeiro contato não está cadastrada (só temos data de vigência)'),
     metricCard('Tempo médio de resolução de sinistros', tempoMedioResolucao !== null ? tempoMedioResolucao.toFixed(0)+' dias' : '—', null,
       tempoMedioResolucao !== null ? `${sinistrosComResolucao.length} sinistros com data de resolução registrada` : null,
       tempoMedioResolucao === null ? 'nenhum sinistro com data de resolução preenchida' : 'falta um "prazo esperado" cadastrado para calcular % resolvido a tempo'),
