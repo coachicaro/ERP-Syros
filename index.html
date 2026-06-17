@@ -667,7 +667,11 @@ async function init() {
 
 async function carregarTudo() {
   try {
-    await Promise.all([carregarClientes(), carregarApolices(), carregarSinistros(), carregarComissoes()]);
+    // Carrega clientes e apólices primeiro (dependências), depois o resto que depende delas
+    await carregarClientes();
+    await carregarApolices();
+    await Promise.all([carregarSinistros(), carregarComissoes()]);
+    renderComissoes(); // re-render garantido com apolices e clientes já prontos
     setSyncStatus('ok', 'Sincronizado');
     atualizarBadges();
     renderDashboard();
